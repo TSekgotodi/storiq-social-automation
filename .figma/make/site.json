@@ -1,0 +1,10 @@
+{
+  "description": "Streamline content creation and scheduling for influencers and celebrities with AI-powered tools that automate posting to multiple social media platforms.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

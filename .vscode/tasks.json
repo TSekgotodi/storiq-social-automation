@@ -1,0 +1,21 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run Vite development server",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"run",
+				"dev",
+				"--",
+				"--host",
+				"0.0.0.0",
+				"--port",
+				"8443"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}
