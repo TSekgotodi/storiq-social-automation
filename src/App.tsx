@@ -18,7 +18,7 @@ import {
   type UserProfile,
 } from "./lib/auth";
 import UserProfileMenu from "./components/UserProfileMenu";
-import reigndevLogo from "./assets/reigndev-logo.png";
+import reigndevLogo from "./assets/reigndev-logo.png?inline";
 
 type IconName =
   | "sparkles"
@@ -332,20 +332,41 @@ function LandingPage({
   onDemo: () => void;
   onPricing: () => void;
 }) {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   return (
     <main className="landing-page">
       <nav className="landing-nav">
         <EntryBrand />
-        <div className="landing-nav-links">
-          <a href="#features">Features</a>
-          <a href="#workflow">How it works</a>
-          <a href="#benefits">Benefits</a>
-          <button onClick={onPricing} type="button">Pricing</button>
+        <div className={`landing-nav-links${isMobileMenuOpen ? " is-open" : ""}`}>
+          <a href="#features" onClick={() => setIsMobileMenuOpen(false)}>Features</a>
+          <a href="#workflow" onClick={() => setIsMobileMenuOpen(false)}>How it works</a>
+          <a href="#benefits" onClick={() => setIsMobileMenuOpen(false)}>Benefits</a>
+          <button
+            onClick={() => {
+              setIsMobileMenuOpen(false);
+              onPricing();
+            }}
+            type="button"
+          >
+            Pricing
+          </button>
         </div>
         <div className="landing-nav-actions">
           <button className="landing-signin" onClick={onLogin} type="button">Sign in</button>
           <button className="landing-primary small" onClick={onLogin} type="button">
             Start creating <Icon name="send" size={14} />
+          </button>
+          <button
+            aria-expanded={isMobileMenuOpen}
+            aria-label={isMobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+            className="landing-mobile-menu"
+            onClick={() => setIsMobileMenuOpen((isOpen) => !isOpen)}
+            type="button"
+          >
+            <span />
+            <span />
+            <span />
           </button>
         </div>
       </nav>

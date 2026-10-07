@@ -209,6 +209,10 @@ textarea:focus-visible {
   gap: 30px;
 }
 
+.landing-mobile-menu {
+  display: none;
+}
+
 .landing-nav-links a,
 .landing-nav-links button {
   padding: 0;
@@ -5345,6 +5349,61 @@ h1 {
 
   .landing-nav-links {
     display: none;
+  }
+
+  .landing-nav-links.is-open {
+    position: absolute;
+    top: calc(100% - 1px);
+    right: 20px;
+    left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px;
+    border: 1px solid rgba(255, 255, 255, .09);
+    border-radius: 14px;
+    background: #11121d;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .38);
+  }
+
+  .landing-nav-links a,
+  .landing-nav-links button {
+    width: 100%;
+    padding: 13px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    text-align: left;
+  }
+
+  .landing-nav-links a:hover,
+  .landing-nav-links button:hover,
+  .landing-nav-links a:focus-visible,
+  .landing-nav-links button:focus-visible {
+    color: #fff;
+    background: rgba(255, 255, 255, .06);
+    outline: none;
+  }
+
+  .landing-mobile-menu {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 10px;
+    color: #d7d4e1;
+    background: rgba(255, 255, 255, .035);
+    cursor: pointer;
+  }
+
+  .landing-mobile-menu span {
+    width: 14px;
+    height: 1px;
+    background: currentColor;
   }
 
   .landing-hero {
