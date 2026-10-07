@@ -525,6 +525,11 @@ It center-crops JPEG, PNG, and WebP feed images to the selected portrait,
 square, or landscape ratio, outputs JPEG binaries, and validates dimensions
 and file size. It does not publish content or handle Story images or videos.
 Keep other platforms on separate branches with their original media.
+If browser-side cropping fails, Storiq logs the failure and sends the original
+file to n8n without displaying an Accept/Reject popup. The Instagram feed
+branch must apply the normalization sub-workflow before uploading to Postiz.
+Unsupported media can still fail in n8n; removing the popup does not bypass
+workflow validation or guarantee publication.
 
 ---
 

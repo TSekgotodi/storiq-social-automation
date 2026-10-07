@@ -145,7 +145,8 @@ Items not targeting Instagram are excluded; an all-excluded batch is an error.
   self-hosted installations, install GraphicsMagick on the **n8n host**, not
   just on this app's computer. Confirm format support on your installation.
 - The app already attempts browser-side cropping. This adds a server-side
-  normalization/validation step, including files sent after a crop warning;
+  normalization/validation step. If browser cropping fails, the app logs the
+  failure and sends the original to n8n without an Accept/Reject popup;
   it cannot recover content already removed by a browser crop.
 
 ## Verify before enabling publishing

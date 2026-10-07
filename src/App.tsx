@@ -941,15 +941,6 @@ export default function App() {
   const [selectedPlatforms, setSelectedPlatforms] = useState(["Instagram", "TikTok"]);
   const [scheduled, setScheduled] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [cropWarning, setCropWarning] = useState<{
-    fileNames: string[];
-    resolve: (accepted: boolean) => void;
-  } | null>(null);
-
-  function resolveCropWarning(accepted: boolean) {
-    cropWarning?.resolve(accepted);
-    setCropWarning(null);
-  }
   const [publishError, setPublishError] = useState("");
   const [workflowConnection, setWorkflowConnection] = useState<
     "unverified" | "connected" | "disconnected"
@@ -1340,25 +1331,20 @@ export default function App() {
       const platformTypes = selectedPlatforms.map(
         (platform) => platformIdentifiers[platform],
       );
-      const uncroppedFileNames: string[] = [];
       const publishFiles = await Promise.all(
         mediaFiles.map((file, index) =>
           cropImageToAspectRatio(
             file,
             contentDesigns[index]?.aspectRatio ?? "portrait",
           ).catch((error) => {
-            console.warn(`Could not crop ${file.name}; sending original.`, error);
-            uncroppedFileNames.push(file.name);
+            console.warn(
+              `Could not crop ${file.name}; sending original to n8n for media processing.`,
+              error,
+            );
             return file;
           }),
         ),
       );
-      if (uncroppedFileNames.length > 0) {
-        const accepted = await new Promise<boolean>((resolve) =>
-          setCropWarning({ fileNames: uncroppedFileNames, resolve }),
-        );
-        if (!accepted) return;
-      }
       const fileCategories = new Set(
         publishFiles.map((file) => file.type.split("/")[0]),
       );
@@ -2531,43 +2517,6 @@ export default function App() {
         </div>
         )}
       </main>
-      {cropWarning && (
-        <div className="crop-warning-backdrop">
-          <div
-            aria-describedby="crop-warning-message"
-            aria-labelledby="crop-warning-title"
-            aria-modal="true"
-            className="crop-warning-dialog"
-            role="alertdialog"
-          >
-            <h2 id="crop-warning-title">Image may be rejected</h2>
-            <p className="crop-warning-files">{cropWarning.fileNames.join(", ")}</p>
-            <p id="crop-warning-message">
-              The image does not meet the requirement of an aspect ratio between
-              4:5 and 1.91:1. Instagram may still reject it with the aspect-ratio
-              error. For that file, re-save it as JPEG (or take a screenshot of
-              it) before uploading.
-            </p>
-            <div className="crop-warning-actions">
-              <button
-                className="crop-warning-reject"
-                onClick={() => resolveCropWarning(false)}
-                type="button"
-              >
-                Reject
-              </button>
-              <button
-                autoFocus
-                className="crop-warning-accept"
-                onClick={() => resolveCropWarning(true)}
-                type="button"
-              >
-                Accept
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
