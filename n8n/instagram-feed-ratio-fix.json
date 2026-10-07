@@ -1,0 +1,113 @@
+{
+  "name": "Storiq - Fix Instagram Feed Image Ratios",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": { "inputSource": "passthrough" },
+      "id": "feed-input",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const output = [];\nconst targets = { portrait: [1080, 1350], square: [1080, 1080], landscape: [1080, 566] };\nfor (const [inputIndex, input] of $input.all().entries()) {\n  const raw = input.json.body?.metadata ?? input.json.metadata;\n  const payload = typeof raw === 'string' ? JSON.parse(raw) : raw;\n  if (!payload || payload.schemaVersion !== '1.0' || !Array.isArray(payload.content) || payload.content.length === 0 || payload.contentCount !== payload.content.length) {\n    throw new Error('Expected Storiq schemaVersion 1.0 metadata with a non-empty content array and matching contentCount. Pass the complete Webhook item, including binary files.');\n  }\n  if (typeof payload.requestId !== 'string' || !payload.requestId || !['content.schedule', 'content.publish_now'].includes(payload.eventType)) {\n    throw new Error('Missing requestId or unsupported Storiq eventType.');\n  }\n  for (const content of payload.content) {\n    if (!content || !Array.isArray(content.platformTypes)) throw new Error('Each content item needs platformTypes.');\n    if (!content.platformTypes.includes('instagram')) continue;\n    const target = Object.hasOwn(targets, content.aspectRatio) ? targets[content.aspectRatio] : undefined;\n    if (!target) throw new Error(`${content.fileName}: feed images require portrait, square, or landscape. Route Story media to a separate workflow.`);\n    if (!['image/jpeg', 'image/png', 'image/webp'].includes(content.fileType)) {\n      throw new Error(`${content.fileName}: this workflow accepts JPEG, PNG, and WebP feed images only. Route videos separately; convert other image formats before calling it.`);\n    }\n    const key = content.fileContent?.fieldName;\n    if (content.fileContent?.transferType !== 'multipart_binary' || typeof key !== 'string' || !key) {\n      throw new Error(`${content.fileName}: missing multipart binary field ${key}. Preserve Webhook binary data and its field names.`);\n    }\n    // n8n appends 0 when the multipart parser represents a field as a file array.\n    const keys = [key, `${key}0`].filter((candidate) => Object.hasOwn(input.binary ?? {}, candidate));\n    if (keys.length !== 1) throw new Error(`${content.fileName}: missing multipart binary field ${key}, or ambiguous file mapping. Expected exactly one of ${key} and ${key}0.`);\n    const binary = input.binary[keys[0]];\n    if (binary.mimeType !== content.fileType) throw new Error(`${content.fileName}: binary MIME type does not match the metadata.`);\n    const baseName = (content.fileName || 'image').replace(/\\.[^.]+$/, '');\n    output.push({\n      json: {\n        requestId: payload.requestId, eventType: payload.eventType, publishMode: payload.publishMode,\n        timezone: payload.timezone, content, targetWidth: target[0], targetHeight: target[1],\n        outputFileName: `${baseName}-instagram-feed.jpg`\n      },\n      binary: { data: binary }, pairedItem: { item: inputIndex }\n    });\n  }\n}\nif (!output.length) throw new Error('No Instagram feed images found. Call this workflow only on the Instagram image branch.');\nreturn output;"
+      },
+      "id": "prepare-images",
+      "name": "Prepare Instagram Images",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "operation": "resize",
+        "dataPropertyName": "data",
+        "width": "={{ $json.targetWidth }}",
+        "height": "={{ $json.targetHeight }}",
+        "resizeOption": "minimumArea",
+        "options": {
+          "format": "jpeg",
+          "quality": 90,
+          "fileName": "={{ $json.outputFileName }}"
+        }
+      },
+      "id": "resize-cover",
+      "name": "Resize to Cover",
+      "type": "n8n-nodes-base.editImage",
+      "typeVersion": 1,
+      "position": [480, 0]
+    },
+    {
+      "parameters": { "operation": "information", "dataPropertyName": "data" },
+      "id": "measure-resized",
+      "name": "Measure Resized Image",
+      "type": "n8n-nodes-base.editImage",
+      "typeVersion": 1,
+      "position": [720, 0]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map((item, index) => {\n  // Get Information replaces JSON; item linking restores the matching metadata.\n  const source = $('Resize to Cover').itemMatching(index).json;\n  const width = Number(item.json.size?.width);\n  const height = Number(item.json.size?.height);\n  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < source.targetWidth || height < source.targetHeight) {\n    throw new Error(`${source.content.fileName}: resize did not cover the required ${source.targetWidth}x${source.targetHeight} canvas.`);\n  }\n  return {\n    json: { ...source, cropX: Math.floor((width - source.targetWidth) / 2), cropY: Math.floor((height - source.targetHeight) / 2) },\n    binary: item.binary, pairedItem: { item: index }\n  };\n});"
+      },
+      "id": "plan-crop",
+      "name": "Plan Center Crop",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 0]
+    },
+    {
+      "parameters": {
+        "operation": "crop",
+        "dataPropertyName": "data",
+        "width": "={{ $json.targetWidth }}",
+        "height": "={{ $json.targetHeight }}",
+        "positionX": "={{ $json.cropX }}",
+        "positionY": "={{ $json.cropY }}",
+        "options": {
+          "format": "jpeg",
+          "quality": 90,
+          "fileName": "={{ $json.outputFileName }}"
+        }
+      },
+      "id": "crop-feed",
+      "name": "Crop Instagram Feed",
+      "type": "n8n-nodes-base.editImage",
+      "typeVersion": 1,
+      "position": [1200, 0]
+    },
+    {
+      "parameters": { "operation": "information", "dataPropertyName": "data" },
+      "id": "measure-final",
+      "name": "Measure Final Image",
+      "type": "n8n-nodes-base.editImage",
+      "typeVersion": 1,
+      "position": [1440, 0]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const output = [];\nfor (const [index, item] of $input.all().entries()) {\n  const source = $('Crop Instagram Feed').itemMatching(index).json;\n  const width = Number(item.json.size?.width);\n  const height = Number(item.json.size?.height);\n  const ratio = width / height;\n  if (width !== source.targetWidth || height !== source.targetHeight || !(ratio >= 0.8 && ratio <= 1.91) || item.json.format !== 'JPEG') {\n    throw new Error(`${source.content.fileName}: final image failed JPEG/dimension/feed-ratio validation.`);\n  }\n  const buffer = await this.helpers.getBinaryDataBuffer(index, 'data');\n  if (buffer.length < 3 || buffer[0] !== 0xff || buffer[1] !== 0xd8 || buffer[2] !== 0xff) {\n    throw new Error(`${source.content.fileName}: output binary is not a JPEG.`);\n  }\n  if (buffer.length > 8 * 1024 * 1024) throw new Error(`${source.content.fileName}: JPEG exceeds the 8 MiB workflow limit. Reduce image quality before publishing.`);\n  output.push({\n    json: {\n      ...source.content,\n      requestId: source.requestId, eventType: source.eventType, publishMode: source.publishMode, timezone: source.timezone,\n      sourcePlatformTypes: source.content.platformTypes, platformTypes: ['instagram'],\n      originalFileName: source.content.fileName, fileName: source.outputFileName,\n      fileType: 'image/jpeg', fileSizeBytes: buffer.length,\n      fileContent: { transferType: 'n8n_binary', fieldName: 'data' },\n      width, height, processedFor: 'instagram_feed'\n    },\n    binary: { data: { ...item.binary.data, fileName: source.outputFileName, mimeType: 'image/jpeg', fileExtension: 'jpg' } },\n    pairedItem: { item: index }\n  });\n}\nreturn output;"
+      },
+      "id": "validate-output",
+      "name": "Validate and Return Images",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1680, 0]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": { "main": [[{ "node": "Prepare Instagram Images", "type": "main", "index": 0 }]] },
+    "Prepare Instagram Images": { "main": [[{ "node": "Resize to Cover", "type": "main", "index": 0 }]] },
+    "Resize to Cover": { "main": [[{ "node": "Measure Resized Image", "type": "main", "index": 0 }]] },
+    "Measure Resized Image": { "main": [[{ "node": "Plan Center Crop", "type": "main", "index": 0 }]] },
+    "Plan Center Crop": { "main": [[{ "node": "Crop Instagram Feed", "type": "main", "index": 0 }]] },
+    "Crop Instagram Feed": { "main": [[{ "node": "Measure Final Image", "type": "main", "index": 0 }]] },
+    "Measure Final Image": { "main": [[{ "node": "Validate and Return Images", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {}
+}

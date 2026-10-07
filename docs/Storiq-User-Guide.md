@@ -515,6 +515,17 @@ For every content item, Storiq securely prepares:
 
 The complete batch also includes a unique request ID. This allows the automation workflow to identify the request and helps prevent duplicate processing.
 
+### Instagram feed image normalization in n8n
+
+Administrators can import the optional
+[Instagram feed ratio fix sub-workflow](../n8n/instagram-feed-ratio-fix.json).
+Follow the [setup instructions](../n8n/README.md) to connect it before the
+Instagram media upload step in the existing publishing workflow.
+It center-crops JPEG, PNG, and WebP feed images to the selected portrait,
+square, or landscape ratio, outputs JPEG binaries, and validates dimensions
+and file size. It does not publish content or handle Story images or videos.
+Keep other platforms on separate branches with their original media.
+
 ---
 
 ## 15. Recommended Workflow
