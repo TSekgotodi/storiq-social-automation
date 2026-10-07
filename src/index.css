@@ -3596,6 +3596,7 @@ h1 {
 }
 
 .uploaded-preview img {
+  object-fit: cover;
   image-orientation: from-image;
 }
 

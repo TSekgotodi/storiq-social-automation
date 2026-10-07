@@ -18,6 +18,7 @@ import {
   type UserProfile,
 } from "./lib/auth";
 import UserProfileMenu from "./components/UserProfileMenu";
+import { cropImageToAspectRatio } from "./lib/media";
 import reigndevLogo from "./assets/reigndev-logo.png?inline";
 
 type IconName =
@@ -1330,13 +1331,21 @@ export default function App() {
       const platformTypes = selectedPlatforms.map(
         (platform) => platformIdentifiers[platform],
       );
+      const publishFiles = await Promise.all(
+        mediaFiles.map((file, index) =>
+          cropImageToAspectRatio(
+            file,
+            contentDesigns[index]?.aspectRatio ?? "portrait",
+          ),
+        ),
+      );
       const fileCategories = new Set(
-        mediaFiles.map((file) => file.type.split("/")[0]),
+        publishFiles.map((file) => file.type.split("/")[0]),
       );
       const batchContentType =
         fileCategories.size > 1
           ? "mixed"
-          : mediaFiles[0]?.type.startsWith("video/")
+          : publishFiles[0]?.type.startsWith("video/")
             ? "video"
             : "image";
       const payload: N8nWorkflowPayload = {
@@ -1353,8 +1362,8 @@ export default function App() {
         status: scheduleMode === "smart" ? "scheduled" : "publish_now",
         contentType: batchContentType,
         platformTypes,
-        contentCount: mediaFiles.length,
-        content: mediaFiles.map((file, index) => ({
+        contentCount: publishFiles.length,
+        content: publishFiles.map((file, index) => ({
           index,
           fileName: file.name,
           fileType: file.type,
@@ -1382,7 +1391,7 @@ export default function App() {
       await triggerN8nWorkflow({
         webhookUrl: import.meta.env.VITE_N8N_WEBHOOK_URL,
         payload,
-        files: mediaFiles,
+        files: publishFiles,
       });
       setWorkflowConnection("connected");
       setScheduled(true);
