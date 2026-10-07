@@ -6,7 +6,18 @@ import {
   type N8nWorkflowPayload,
   type PlatformType,
 } from "./lib/n8n";
-import { authClient, signInWithSocialProvider } from "./lib/auth";
+import {
+  authClient,
+  consumeSocialLoginError,
+  getPlanLabel,
+  getSocialUserProfile,
+  loginWithBackend,
+  registerWithBackend,
+  signInWithSocialProvider,
+  type BackendSession,
+  type UserProfile,
+} from "./lib/auth";
+import UserProfileMenu from "./components/UserProfileMenu";
 import reigndevLogo from "./assets/reigndev-logo.png";
 
 type IconName =
@@ -697,35 +708,92 @@ function PricingPage({
   );
 }
 
-function LoginScreen({
+function AuthScreen({
+  mode,
   onBack,
   onSuccess,
+  onSwitch,
+  onGuest,
+  notice,
 }: {
+  mode: "login" | "signup";
   onBack: () => void;
-  onSuccess: () => void;
+  onSuccess: (session?: BackendSession) => void;
+  onSwitch: () => void;
+  onGuest: () => void;
+  notice?: string;
 }) {
+  const isSignUp = mode === "signup";
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [socialLoading, setSocialLoading] = useState<
     "google" | "facebook" | null
   >(null);
 
-  function submitLogin(event: React.FormEvent) {
+  async function submitLogin(event: React.FormEvent) {
     event.preventDefault();
+    if (isSignUp && !firstName.trim()) {
+      setLoginError("Enter your first name.");
+      return;
+    }
+    if (isSignUp && !lastName.trim()) {
+      setLoginError("Enter your last name.");
+      return;
+    }
+    if (isSignUp && !phoneNumber.trim()) {
+      setLoginError("Enter your phone number.");
+      return;
+    }
     if (!email.includes("@")) {
       setLoginError("Enter a valid email address.");
       return;
     }
-    if (password.length < 6) {
-      setLoginError("Password must contain at least 6 characters.");
+    if (!password || (isSignUp && password.length < 6)) {
+      setLoginError(isSignUp
+        ? "Password must contain at least 6 characters."
+        : "Enter your password.");
+      return;
+    }
+    if (isSignUp && confirmPassword !== password) {
+      setLoginError("Confirm password must match password.");
       return;
     }
     setSubmitting(true);
     setLoginError("");
-    window.setTimeout(onSuccess, 650);
+    try {
+      if (isSignUp) {
+        await registerWithBackend({
+          email: email.trim(),
+          password,
+          confirmPassword,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          phoneNumber: phoneNumber.trim(),
+          role: 1,
+        });
+      } else {
+        const session = await loginWithBackend({ email: email.trim(), password });
+        onSuccess(session);
+        return;
+      }
+      onSuccess();
+    } catch (error) {
+      setLoginError(
+        error instanceof Error
+          ? error.message
+          : isSignUp ? "Could not complete registration." : "Could not sign in.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function socialLogin(provider: "google" | "facebook") {
@@ -739,6 +807,7 @@ function LoginScreen({
           ? error.message
           : `Could not continue with ${provider}.`,
       );
+    } finally {
       setSocialLoading(null);
     }
   }
@@ -761,26 +830,52 @@ function LoginScreen({
         <div className="login-mobile-brand"><EntryBrand /></div>
         <form className="login-form" onSubmit={submitLogin}>
           <div className="login-heading">
-            <span>WELCOME BACK</span>
-            <h2>Sign in to Storiq</h2>
-            <p>Continue creating content that moves with you.</p>
+            <span>{isSignUp ? "JOIN STORIQ" : "WELCOME BACK"}</span>
+            <h2>{isSignUp ? "Create your Storiq account" : "Sign in to Storiq"}</h2>
+            <p>{isSignUp
+              ? "Set up your profile to start creating and publishing content."
+              : "Continue creating content that moves with you."}</p>
           </div>
+          {notice && <p className="auth-notice" role="status">{notice}</p>}
+          <fieldset className="auth-fields" disabled={submitting || socialLoading !== null}>
+          {isSignUp && <>
+          <label>
+            <span>First name</span>
+            <div className="login-input"><span>ID</span><input autoComplete="given-name" onChange={(event) => setFirstName(event.target.value)} placeholder="First name" type="text" value={firstName} /></div>
+          </label>
+          <label>
+            <span>Last name</span>
+            <div className="login-input"><span>ID</span><input autoComplete="family-name" onChange={(event) => setLastName(event.target.value)} placeholder="Last name" type="text" value={lastName} /></div>
+          </label>
+          <label>
+            <span>Phone number</span>
+            <div className="login-input"><span>#</span><input autoComplete="tel" onChange={(event) => setPhoneNumber(event.target.value)} placeholder="+27 71 234 5678" type="tel" value={phoneNumber} /></div>
+          </label>
+          </>}
           <label>
             <span>Email address</span>
-            <div className="login-input"><span>@</span><input autoComplete="email" onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" type="email" value={email} /></div>
+            <div className="login-input"><span aria-hidden="true">@</span><input required autoComplete="email" onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" type="email" value={email} /></div>
           </label>
           <label>
             <span>Password</span>
-            <div className="login-input"><span>••</span><input autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" type={showPassword ? "text" : "password"} value={password} /><button onClick={() => setShowPassword((current) => !current)} type="button">{showPassword ? "Hide" : "Show"}</button></div>
+            <div className="login-input"><span aria-hidden="true">••</span><input required autoComplete={isSignUp ? "new-password" : "current-password"} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" type={showPassword ? "text" : "password"} value={password} /><button onClick={() => setShowPassword((current) => !current)} type="button">{showPassword ? "Hide" : "Show"}</button></div>
           </label>
-          <div className="login-options">
-            <label><input type="checkbox" /> <span>Remember me</span></label>
-            <button type="button">Forgot password?</button>
-          </div>
-          {loginError && <div className="login-error">{loginError}</div>}
-          <button className="login-submit" disabled={submitting} type="submit">
-            {submitting ? "Opening your studio..." : "Sign in"} {!submitting && <Icon name="send" size={15} />}
+          {isSignUp && (
+          <label>
+            <span>Confirm password</span>
+            <div className="login-input"><span>••</span><input autoComplete="new-password" onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Confirm your password" type={showConfirmPassword ? "text" : "password"} value={confirmPassword} /><button onClick={() => setShowConfirmPassword((current) => !current)} type="button">{showConfirmPassword ? "Hide" : "Show"}</button></div>
+          </label>
+          )}
+          {loginError && <div className="login-error" role="alert">{loginError}</div>}
+          <button className="login-submit" disabled={submitting || socialLoading !== null} type="submit">
+            {submitting
+              ? isSignUp ? "Creating your account..." : "Signing in..."
+              : isSignUp ? "Create account" : "Sign in"} {!submitting && <Icon name="send" size={15} />}
           </button>
+          <p className="auth-switch">
+            {isSignUp ? "Already have an account? " : "Don't have an account? "}
+            <button onClick={onSwitch} type="button">{isSignUp ? "Sign in" : "Sign up"}</button>
+          </p>
           <div className="login-divider"><span>or continue with</span></div>
           <div className="social-login-grid">
             <button
@@ -800,7 +895,8 @@ function LoginScreen({
               {socialLoading === "facebook" ? "Connecting..." : "Facebook"}
             </button>
           </div>
-          <button className="guest-login" onClick={onSuccess} type="button">Continue as guest</button>
+          <button className="guest-login" onClick={onGuest} type="button">Continue as guest</button>
+          </fieldset>
           <p className="login-terms">By continuing, you agree to the Terms of Service and Privacy Policy.</p>
         </form>
         <div className="login-powered">POWERED BY REIGNDEV</div>
@@ -811,8 +907,13 @@ function LoginScreen({
 
 export default function App() {
   const [entryScreen, setEntryScreen] = useState<
-    "splash" | "landing" | "pricing" | "login" | "app"
+    "splash" | "landing" | "pricing" | "login" | "signup" | "app"
   >("splash");
+  const [authNotice, setAuthNotice] = useState("");
+  const [backendSession, setBackendSession] = useState<BackendSession | null>(null);
+  const [socialUser, setSocialUser] = useState<UserProfile | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
   const [activeNav, setActiveNav] = useState("Create");
   const [contentType, setContentType] = useState<"Image" | "Video">("Image");
   const [selectedPlatforms, setSelectedPlatforms] = useState(["Instagram", "TikTok"]);
@@ -896,19 +997,86 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
-    authClient.auth.getSession().then(({ data }) => {
-      if (active && data.session) setEntryScreen("app");
-    });
+    const callbackError = consumeSocialLoginError();
+    if (callbackError) {
+      setAuthNotice(callbackError);
+      setEntryScreen("login");
+    }
+    const showSessionError = () => {
+      if (!active) return;
+      setAuthNotice("Could not restore your social login session. Please sign in again.");
+      setEntryScreen("login");
+    };
+    authClient.auth.getSession().then(({ data, error }) => {
+      if (!active) return;
+      if (error) {
+        showSessionError();
+        return;
+      }
+      if (data.session) {
+        setSocialUser(getSocialUserProfile(data.session.user));
+        setEntryScreen("app");
+      }
+    }).catch(showSessionError);
     const {
       data: { subscription },
     } = authClient.auth.onAuthStateChange((_event, session) => {
-      if (session) setEntryScreen("app");
+      if (!active) return;
+      setSocialUser(session ? getSocialUserProfile(session.user) : null);
+      if (session) {
+        setBackendSession(null);
+        setAuthNotice("");
+        setEntryScreen("app");
+      }
     });
     return () => {
       active = false;
       subscription.unsubscribe();
     };
   }, []);
+
+  async function logout() {
+    if (publishing || processingUpload || loggingOut) return;
+    setLoggingOut(true);
+    setLogoutError("");
+    try {
+      if (socialUser) {
+        const { error } = await authClient.auth.signOut();
+        if (error) throw error;
+      }
+      setBackendSession(null);
+      setSocialUser(null);
+      mediaUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      mediaUrlsRef.current = [];
+      setMediaFiles([]);
+      setMediaUrls([]);
+      setContentCopies([]);
+      setContentDesigns([]);
+      setContentSchedules([]);
+      setActiveMediaIndex(0);
+      setScheduled(false);
+      setPublishError("");
+      setUploadError("");
+      setFailedMediaUrl("");
+      setWorkflowConnection("unverified");
+      setShowNotifications(false);
+      setNotificationsRead(false);
+      setLibrarySearch("");
+      setLibraryFilter("all");
+      setActiveNav("Create");
+      setSelectedPlatforms(["Instagram", "TikTok"]);
+      setScheduleMode("smart");
+      setSelectedTimezone(localTimezone);
+      setEditingTimezone(false);
+      setPreviewPlatform("Instagram");
+      setAuthNotice("You have been logged out.");
+      setEntryScreen("login");
+    } catch (error) {
+      setLogoutError(error instanceof Error ? error.message : "Could not log out. Please try again.");
+    } finally {
+      setLoggingOut(false);
+    }
+  }
 
   useEffect(
     () => () => {
@@ -1287,15 +1455,33 @@ export default function App() {
     return (
       <PricingPage
         onBack={() => setEntryScreen("landing")}
-        onGetStarted={() => setEntryScreen("login")}
+        onGetStarted={() => setEntryScreen("signup")}
       />
     );
   }
-  if (entryScreen === "login") {
+  if (entryScreen === "login" || entryScreen === "signup") {
     return (
-      <LoginScreen
+      <AuthScreen
+        key={entryScreen}
+        mode={entryScreen}
+        onGuest={() => setEntryScreen("app")}
+        notice={entryScreen === "login" ? authNotice : undefined}
         onBack={() => setEntryScreen("landing")}
-        onSuccess={() => setEntryScreen("app")}
+        onSwitch={() => {
+          setAuthNotice("");
+          setEntryScreen(entryScreen === "login" ? "signup" : "login");
+        }}
+        onSuccess={(session) => {
+          if (entryScreen === "signup") {
+            setAuthNotice("Account created. Sign in with your email and password.");
+            setEntryScreen("login");
+          } else {
+            if (!session) return;
+            setBackendSession(session);
+            setAuthNotice("");
+            setEntryScreen("app");
+          }
+        }}
       />
     );
   }
@@ -1360,7 +1546,11 @@ export default function App() {
           <div className="top-actions">
             <div className="credits">
               <Icon name="zap" size={15} />
-              <span><b>Premium</b> plan</span>
+              <span>
+                {backendSession || socialUser ? (
+                  <b>{getPlanLabel((backendSession?.user ?? socialUser)?.role ?? null)}</b>
+                ) : <b>Guest</b>}
+              </span>
             </div>
             <button
               aria-expanded={showNotifications}
@@ -1438,6 +1628,13 @@ export default function App() {
               <Icon name="plus" size={18} />
               New content
             </button>
+            <UserProfileMenu
+              user={backendSession?.user ?? socialUser}
+              disabled={publishing || processingUpload || loggingOut}
+              loggingOut={loggingOut}
+              error={logoutError}
+              onLogout={logout}
+            />
           </div>
         </header>
 

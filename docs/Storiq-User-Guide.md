@@ -100,6 +100,50 @@ The available publishing destinations are shown in the **Platforms** section.
 
 ## 4. Understanding the Main Navigation
 
+### Account access
+
+Existing users select **Sign in** and enter only their email and password.
+New users select **Sign up** on the sign-in page to open the separate account
+registration page. Registration requires first name, last name, phone number,
+email, password, and a matching password confirmation; the request uses role `1`.
+After registration succeeds, Storiq returns to sign-in with a confirmation message.
+Registration alone does not sign the user in. Both pages display backend errors
+without opening the studio.
+
+Email sign-in posts to `/api/v1/auth/login`; sign-up posts to
+`/api/v1/auth/register` on the configured identity API. Deployments may override
+the endpoints using `VITE_AUTH_LOGIN_URL` and `VITE_AUTH_REGISTER_URL`.
+
+Google and Facebook sign-in use Supabase OAuth, separately from the email
+identity API. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to the project's
+public client configuration, enable both providers in Supabase, and allow the
+app's URL in Supabase's redirect URL settings. Configure each provider's OAuth
+callback URL in its developer console. Never put provider secrets or a Supabase
+service-role key in `VITE_` variables.
+
+Cancelled or failed social sign-in returns to the sign-in page with a message.
+Missing profile fields are supported. Social profiles display **Plan unavailable**
+until a trusted backend provides the subscription role; provider metadata does
+not grant a paid plan.
+
+### Profile and logout
+
+Select the account avatar in the studio header to view your name, email, phone
+number, and plan. Backend role `1` is **Basic**, role `2` is **Standard**, and
+role `3` is **Premium**. The same plan appears in the studio header; missing or
+unrecognized roles display **Plan unavailable**, never an assumed paid plan.
+Profile images appear when provided by the account
+service; otherwise, the avatar displays your initials. Guest sessions are labeled
+**Guest** and never show another user's account details.
+
+Select **Log out** in the profile panel to return to sign-in. Logout clears the
+in-memory backend session and the current content queue, including captions,
+designs, schedules, and uploaded previews. It also signs out an active social
+login session. Logout is unavailable while media is being prepared or published.
+Backend sessions are not saved to browser storage and require sign-in again
+after a page reload. Backend logout is local only: no server token-revocation
+endpoint is configured.
+
 Storiq has two primary areas.
 
 ### Create

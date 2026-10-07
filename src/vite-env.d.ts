@@ -2,6 +2,10 @@
 
 interface ImportMetaEnv {
   readonly VITE_N8N_WEBHOOK_URL?: string;
+  readonly VITE_AUTH_REGISTER_URL?: string;
+  readonly VITE_AUTH_LOGIN_URL?: string;
+  readonly VITE_SUPABASE_URL?: string;
+  readonly VITE_SUPABASE_ANON_KEY?: string;
 }
 
 interface ImportMeta {
