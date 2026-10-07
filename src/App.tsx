@@ -1336,7 +1336,10 @@ export default function App() {
           cropImageToAspectRatio(
             file,
             contentDesigns[index]?.aspectRatio ?? "portrait",
-          ),
+          ).catch((error) => {
+            console.warn(`Could not crop ${file.name}; sending original.`, error);
+            return file;
+          }),
         ),
       );
       const fileCategories = new Set(

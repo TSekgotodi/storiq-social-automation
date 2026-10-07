@@ -16,13 +16,60 @@ const RATIO_TOLERANCE = 0.01;
  * Instagram receive dimensions they accept. Videos and animated formats are
  * returned unchanged.
  */
+type DecodedImage = {
+  source: CanvasImageSource;
+  width: number;
+  height: number;
+  close: () => void;
+};
+
+async function decodeImage(file: File): Promise<DecodedImage | null> {
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    return {
+      source: bitmap,
+      width: bitmap.width,
+      height: bitmap.height,
+      close: () => bitmap.close(),
+    };
+  } catch {
+    // Some browsers reject createImageBitmap for files they can still display.
+  }
+
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.decoding = "async";
+    image.src = url;
+    await image.decode();
+    if (!image.naturalWidth || !image.naturalHeight) {
+      URL.revokeObjectURL(url);
+      return null;
+    }
+    return {
+      source: image,
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+      close: () => URL.revokeObjectURL(url),
+    };
+  } catch {
+    URL.revokeObjectURL(url);
+    return null;
+  }
+}
+
 export async function cropImageToAspectRatio(
   file: File,
   aspectRatio: AspectRatio,
 ): Promise<File> {
   if (!CROPPABLE_TYPES.includes(file.type)) return file;
 
-  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  const bitmap = await decodeImage(file);
+  if (!bitmap) {
+    console.warn(`Could not decode ${file.name}; sending it without cropping.`);
+    return file;
+  }
+
   try {
     const targetRatio = ASPECT_RATIOS[aspectRatio];
     const sourceRatio = bitmap.width / bitmap.height;
@@ -56,7 +103,7 @@ export async function cropImageToAspectRatio(
     context.fillRect(0, 0, outputWidth, outputHeight);
     context.imageSmoothingQuality = "high";
     context.drawImage(
-      bitmap,
+      bitmap.source,
       cropX,
       cropY,
       cropWidth,
