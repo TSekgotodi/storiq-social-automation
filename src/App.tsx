@@ -1331,6 +1331,7 @@ export default function App() {
       const platformTypes = selectedPlatforms.map(
         (platform) => platformIdentifiers[platform],
       );
+      const uncroppedFileNames: string[] = [];
       const publishFiles = await Promise.all(
         mediaFiles.map((file, index) =>
           cropImageToAspectRatio(
@@ -1338,10 +1339,19 @@ export default function App() {
             contentDesigns[index]?.aspectRatio ?? "portrait",
           ).catch((error) => {
             console.warn(`Could not crop ${file.name}; sending original.`, error);
+            uncroppedFileNames.push(file.name);
             return file;
           }),
         ),
       );
+      if (uncroppedFileNames.length > 0) {
+        window.alert(
+          `Warning: ${uncroppedFileNames.join(", ")}\n\n` +
+            "The image does not meet the requirement of an aspect ratio between 4:5 and 1.91:1. " +
+            "Instagram may still reject it with the aspect-ratio error. " +
+            "For that file, re-save it as JPEG (or take a screenshot of it) before uploading.",
+        );
+      }
       const fileCategories = new Set(
         publishFiles.map((file) => file.type.split("/")[0]),
       );

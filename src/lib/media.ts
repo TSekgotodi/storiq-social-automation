@@ -66,8 +66,7 @@ export async function cropImageToAspectRatio(
 
   const bitmap = await decodeImage(file);
   if (!bitmap) {
-    console.warn(`Could not decode ${file.name}; sending it without cropping.`);
-    return file;
+    throw new Error(`Could not decode ${file.name} for cropping.`);
   }
 
   try {
